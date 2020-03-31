@@ -88,14 +88,17 @@ if (-not $isAdmin)
 #################################################################################################
 
 $Region = $Region.Replace(' ', '')
-
-$storageAccountName = "$($ResourceGroup.ToLower())sa"
-$hubName = $ResourceGroup
 $appRegistrationName = $ResourceGroup
-$deviceProvisioningServiceName = $ResourceGroup
-$farRegion = "southeastasia"
-$farHubName = $ResourceGroup + "Far"
 $uploadCertificateName = "group1-certificate"
+
+## remove any characters that aren't letters or numbers, and then validate
+$storageAccountName = "$($ResourceGroup.ToLower())sa"
+$storageAccountName = [regex]::Replace($storageAccountName, "[^a-z0-9]", "")
+if (-not ($storageAccountName -match "^[a-z0-9](?!.*--)[a-z0-9-]{1,61}[a-z0-9]$"))
+{
+    throw "Storage account name derrived from resource group has illegal characters: $storageAccountName"
+}
+
 
 ########################################################################################################
 # Generate self-signed certs and to use in DPS and IoT Hub
@@ -109,12 +112,12 @@ $groupCertCommonName = "xdevice1"
 $deviceCertCommonName = "iothubx509device1"
 $iotHubCertCommonName = "iothubx509device1"
 
-$rootCertPath = "./Root.cer"
-$individualDeviceCertPath = "./Device.cer"
-$verificationCertPath = "./verification.cer"
+$rootCertPath = "$PSScriptRoot/Root.cer"
+$individualDeviceCertPath = "$PSScriptRoot/Device.cer"
+$verificationCertPath = "$PSScriptRoot/verification.cer"
 
-$groupPfxPath = "./Group.pfx"
-$individualDevicePfxPath = "./Device.pfx"
+$groupPfxPath = "$PSScriptRoot/Group.pfx"
+$individualDevicePfxPath = "$PSScriptRoot/Device.pfx"
 $iotHubPfxPath = "./IotHub.pfx"
 
 $groupCertChainPath = "./GroupCertChain.p7b"
@@ -275,20 +278,15 @@ Write-Host @"
     2.Deployment name ($deploymentName), Resource group ($ResourceGroup), Subscription ($SubscriptionId)
 "@
 
-az deployment group create  `
+az deployment group create `
     --resource-group $ResourceGroup `
     --name $deploymentName `
     --template-file "$PSScriptRoot\e2eTestsArmTemplate.json" `
-    --output none `
+    --rollback-on-error `
     --parameters `
-    Region=$Region `
-    ResourceGroup=$ResourceGroup `
     StorageAccountName=$storageAccountName `
-    DeviceProvisioningServiceName=$deviceProvisioningServiceName `
-    HubName=$hubName `
-    FarHubName=$farHubName `
-    FarRegion=$farRegion `
-    UserObjectId=$userObjectId
+    UserObjectId=$userObjectId `
+    FarRegion=$farRegion
 
 Write-Host "`nYour infrastructure is ready in subscription ($SubscriptionId), resource group ($ResourceGroup)"
 
